@@ -359,8 +359,8 @@ function updateUI() {
     
     // Обновляем заголовок страницы
     document.title = currentLanguage === 'en' 
-        ? 'Medieval Empire - AoE2 Style' 
-        : 'Средневековая Империя - AoE2 Style';
+        ? 'Empire - ' 
+        : 'Империя - ';
 }
 
 // Система ресурсов
