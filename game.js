@@ -42,6 +42,7 @@ const translations = {
         'ui.preferred': 'Preferred tile:',
         'ui.efficiency': 'Efficiency:',
         'ui.nothing': 'nothing',
+        'ui.tileBonuses': 'Tile bonuses',
         'ui.error': 'An error occurred while loading the game. Please reload the page.',
         'ui.position': 'Position:',
         'ui.size': 'Size:',
@@ -80,6 +81,13 @@ const translations = {
         'ui.produced': 'Produced:',
         'ui.consumed': 'Consumed:',
         'ui.balance': 'Balance:',
+        'ui.status': 'Status:',
+        'ui.working': 'Working',
+        'ui.notWorking': 'Not working',
+        'ui.reason': 'Reason:',
+        'ui.insufficientResources': 'insufficient resources',
+        'ui.cells': 'cells',
+        'ui.pageTitle': 'Empire',
         
         // Здания
         'building.0': 'Silver Mine',
@@ -175,6 +183,7 @@ const translations = {
         'ui.preferred': 'Предпочитаемый тайл:',
         'ui.efficiency': 'Эффективность:',
         'ui.nothing': 'ничего',
+        'ui.tileBonuses': 'Бонусы местности',
         'ui.error': 'Произошла ошибка при загрузке игры. Пожалуйста, перезагрузите страницу.',
         'ui.position': 'Позиция:',
         'ui.size': 'Размер:',
@@ -213,6 +222,13 @@ const translations = {
         'ui.produced': 'Производится:',
         'ui.consumed': 'Потребляется:',
         'ui.balance': 'Баланс:',
+        'ui.status': 'Статус:',
+        'ui.working': 'Работает',
+        'ui.notWorking': 'Не работает',
+        'ui.reason': 'Причина:',
+        'ui.insufficientResources': 'недостаточно ресурсов',
+        'ui.cells': 'клеток',
+        'ui.pageTitle': 'Империя',
         
         // Здания
         'building.0': 'Серебряная шахта',
@@ -357,10 +373,8 @@ function updateUI() {
         }
     }
     
-    // Обновляем заголовок страницы
-    document.title = currentLanguage === 'en' 
-        ? 'Empire - ' 
-        : 'Империя - ';
+    // Update page title
+    document.title = t('ui.pageTitle');
 }
 
 // Система ресурсов
@@ -1046,6 +1060,9 @@ const gameMap = {
     }
 };
 
+// Состояние клавиши Ctrl (для показа бейджей)
+let isCtrlPressed = false;
+
 // Типы тайлов
 const tileTypes = ['grass', 'forest', 'stone', 'gold', 'iron', 'water'];
 
@@ -1216,7 +1233,7 @@ function initResourcesBar() {
         resourceItem.dataset.resource = resourceKey;
         const initialValue = resources[resourceKey] || 0;
         resourceItem.innerHTML = `
-            <span class="resource-icon">${getResourceIcon(resourceKey)}</span>
+            <span class="resource-icon">${getResourceIconHTML(resourceKey)}</span>
             <span class="resource-value" id="resource-${resourceKey}">${formatNumber(initialValue)}</span>
         `;
         
@@ -1505,6 +1522,26 @@ function init() {
     
     // Обновляем интерфейс с учетом языка
     updateUI();
+    
+    // Обработчики для клавиши Ctrl (для показа бейджей)
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Control') {
+            isCtrlPressed = true;
+        }
+    });
+    
+    document.addEventListener('keyup', (e) => {
+        if (e.key === 'Control') {
+            isCtrlPressed = false;
+            hideMapBadge();
+        }
+    });
+    
+    // Также отслеживаем когда Ctrl теряет фокус (например, при переключении окна)
+    window.addEventListener('blur', () => {
+        isCtrlPressed = false;
+        hideMapBadge();
+    });
 }
 
 // Рендеринг карты
@@ -1549,7 +1586,7 @@ function renderMap() {
             const y = parseInt(tile.dataset.y);
             if (!isNaN(x) && !isNaN(y)) {
                 e.stopPropagation();
-                handleTileClick(x, y);
+                handleTileClick(x, y, e);
             }
         }
     });
@@ -1565,6 +1602,27 @@ function renderMap() {
                 if (lastHoveredTileKey !== tileKey) {
                     lastHoveredTileKey = tileKey;
                     handleTileHover(x, y);
+                    // Показываем бейдж с типом тайла
+                    const tileData = gameMap.tiles[y][x];
+                    if (tileData) {
+                        const tileName = getTileName(tileData.type);
+                        showMapBadge(tileName, e.clientX, e.clientY, 'tile');
+                    }
+                }
+            }
+        }
+    });
+    
+    grid.addEventListener('mousemove', (e) => {
+        const tile = e.target.closest('.tile');
+        if (tile && !e.target.closest('.map-building')) {
+            const x = parseInt(tile.dataset.x);
+            const y = parseInt(tile.dataset.y);
+            if (!isNaN(x) && !isNaN(y)) {
+                const tileData = gameMap.tiles[y][x];
+                if (tileData) {
+                    const tileName = getTileName(tileData.type);
+                    showMapBadge(tileName, e.clientX, e.clientY, 'tile');
                 }
             }
         }
@@ -1582,6 +1640,10 @@ function renderMap() {
                     lastHoveredTileKey = null;
                 }
                 handleTileLeave(x, y);
+                // Скрываем бейдж, если не перешли на здание
+                if (!e.relatedTarget || !e.relatedTarget.closest('.map-building')) {
+                    hideMapBadge();
+                }
             }
         }
     });
@@ -1955,7 +2017,7 @@ function renderMapBuildings() {
         buildingElement.style.top = `${building.y * 40}px`;
         buildingElement.style.width = `${width * 40}px`;
         buildingElement.style.height = `${height * 40}px`;
-        buildingElement.textContent = buildingData.icon;
+        buildingElement.innerHTML = getBuildingIconHTML(buildingData.icon, buildingData.id);
         buildingElement.dataset.instanceId = building.instanceId;
         buildingElement.setAttribute('data-instance-id', building.instanceId);
         
@@ -1996,8 +2058,29 @@ function renderMapBuildings() {
                 return;
             }
             e.stopPropagation();
-            // Передаем координаты здания и сам объект здания
-            handleBuildingClick(building);
+            // Передаем координаты здания, сам объект здания и событие
+            handleBuildingClick(building, e);
+        });
+        
+        // Обработчик наведения на здание - показываем бейдж с названием
+        buildingElement.addEventListener('mouseenter', (e) => {
+            e.stopPropagation();
+            const buildingName = getBuildingName(building.buildingId);
+            showMapBadge(buildingName, e.clientX, e.clientY);
+        });
+        
+        buildingElement.addEventListener('mousemove', (e) => {
+            e.stopPropagation();
+            const buildingName = getBuildingName(building.buildingId);
+            showMapBadge(buildingName, e.clientX, e.clientY);
+        });
+        
+        buildingElement.addEventListener('mouseleave', (e) => {
+            e.stopPropagation();
+            // Скрываем бейдж только если не перешли на другой элемент здания
+            if (!e.relatedTarget || !e.relatedTarget.closest('.map-building')) {
+                hideMapBadge();
+            }
         });
         
         // Устанавливаем курсор для выбранных зданий (одиночный выбор или в группе)
@@ -2022,18 +2105,18 @@ let clickState = {
 };
 
 // Обработка клика по зданию (вызывается из обработчика здания)
-function handleBuildingClick(building) {
+function handleBuildingClick(building, event = null) {
     if (gameMap.buildingToPlace) {
         // Если выбрано здание для постройки - размещаем его
         placeBuilding(building.x, building.y, gameMap.buildingToPlace);
         return;
     }
     
-    processBuildingSelection(building);
+    processBuildingSelection(building, event);
 }
 
 // Обработка клика по тайлу (оптимизировано - проверяет все клетки здания)
-function handleTileClick(x, y) {
+function handleTileClick(x, y, event = null) {
     if (gameMap.buildingToPlace) {
         // Если выбрано здание для постройки - размещаем его
         placeBuilding(x, y, gameMap.buildingToPlace);
@@ -2049,7 +2132,7 @@ function handleTileClick(x, y) {
     });
     
     if (building) {
-        processBuildingSelection(building);
+        processBuildingSelection(building, event);
     } else {
         // Если кликнули по пустому месту - просто снимаем выбор (перемещение теперь через drag)
         if (clickState.timeout) {
@@ -2083,12 +2166,17 @@ function handleTileClick(x, y) {
     }
 }
 
-// Обработка выбора здания с учетом количества кликов
-function processBuildingSelection(building) {
-    // Определяем количество кликов
-    const currentTime = Date.now();
-    const timeDiff = currentTime - clickState.lastClickTime;
-    const isSameBuilding = clickState.lastBuildingId === building.instanceId;
+// Обработка выбора здания с учетом модификаторов клавиш
+function processBuildingSelection(building, event = null) {
+    // Проверяем, зажата ли клавиша Ctrl
+    const isCtrlPressed = event && event.ctrlKey;
+    // Проверяем, зажата ли клавиша Shift
+    const isShiftPressed = event && event.shiftKey;
+    
+    // Проверяем, выбрано ли это здание
+    const isCurrentlySelected = (gameMap.selectedBuildings && 
+                                  gameMap.selectedBuildings.some(b => b.instanceId === building.instanceId)) ||
+                                  (gameMap.selectedBuilding === building.instanceId);
     
     // Очищаем предыдущий таймаут
     if (clickState.timeout) {
@@ -2096,43 +2184,47 @@ function processBuildingSelection(building) {
         clickState.timeout = null;
     }
     
-    if (isSameBuilding && timeDiff < 400) {
-        // Быстрый повторный клик по тому же зданию - увеличиваем счетчик
-        clickState.clickCount++;
-        if (clickState.clickCount > 3) clickState.clickCount = 3;
-    } else {
-        // Новый клик или клик по другому зданию - начинаем заново
-        clickState.clickCount = 1;
+    // Если Ctrl зажат - выбираем группу (даже если здание уже выбрано)
+    if (isCtrlPressed) {
+        selectBuildingGroup(building.instanceId);
+        // Сбрасываем состояние
+        clickState.lastClickTime = 0;
+        clickState.lastClickTile = null;
+        clickState.clickCount = 0;
+        clickState.lastBuildingId = null;
+        return;
     }
     
-    clickState.lastClickTime = currentTime;
-    clickState.lastClickTile = { x: building.x, y: building.y };
-    clickState.lastBuildingId = building.instanceId;
-    
-    const currentClickCount = clickState.clickCount;
-    
-    // Обрабатываем выбор с задержкой для определения окончательного количества кликов
-    clickState.timeout = setTimeout(() => {
-        // Проверяем, что это все еще то же здание и количество кликов не изменилось
-        if (clickState.lastBuildingId === building.instanceId && 
-            clickState.clickCount === currentClickCount) {
-            
-            if (currentClickCount === 1) {
-                // 1 клик - одно здание
-                selectSingleBuilding(building.instanceId);
-            } else if (currentClickCount === 2) {
-                // 2 клика - группа зданий
-                selectBuildingGroup(building.instanceId);
-            } else if (currentClickCount >= 3) {
-                // 3 клика - все здания этого типа
-                selectAllBuildingsOfType(building.buildingId);
-            }
-        }
-        
-        // Сбрасываем состояние после обработки
+    // Если Shift зажат - выбираем все здания этого типа (даже если здание уже выбрано)
+    if (isShiftPressed) {
+        selectAllBuildingsOfType(building.buildingId);
+        // Сбрасываем состояние
+        clickState.lastClickTime = 0;
+        clickState.lastClickTile = null;
         clickState.clickCount = 0;
-        clickState.timeout = null;
-    }, 350);
+        clickState.lastBuildingId = null;
+        return;
+    }
+    
+    // Обычный клик без модификаторов
+    // Если здание уже выбрано - ничего не делаем
+    if (isCurrentlySelected) {
+        // Сбрасываем состояние, но не меняем выбор
+        clickState.lastClickTime = 0;
+        clickState.lastClickTile = null;
+        clickState.clickCount = 0;
+        clickState.lastBuildingId = null;
+        return;
+    }
+    
+    // Если здание не выбрано - выбираем его
+    selectSingleBuilding(building.instanceId);
+    
+    // Сбрасываем состояние
+    clickState.lastClickTime = 0;
+    clickState.lastClickTile = null;
+    clickState.clickCount = 0;
+    clickState.lastBuildingId = null;
 }
 
 // Кэш для hover (избегаем лишних обновлений)
@@ -3125,7 +3217,7 @@ function showBuildingInfo(buildingData, buildingInstance, mode = 'single', build
     
     const iconEl = document.getElementById('selected-icon');
     const nameEl = document.getElementById('selected-name');
-    if (iconEl) iconEl.textContent = buildingData.icon;
+    if (iconEl) iconEl.innerHTML = getBuildingIconHTML(buildingData.icon, buildingData.id);
     
     // Определяем название в зависимости от режима
     let title = getBuildingName(buildingData.id);
@@ -3189,7 +3281,9 @@ function showBuildingInfo(buildingData, buildingInstance, mode = 'single', build
         html += `<p><strong>${t('ui.produces')}</strong></p>`;
         html += `<div class="tooltip-badges">`;
         Object.entries(production).forEach(([resource, amount]) => {
-            html += `<span class="tooltip-badge" style="color: #4a9eff; background: rgba(74, 158, 255, 0.1);">${getResourceIcon(resource)} ${getResourceName(resource)} ${formatNumber(amount)}${t('ui.perSecond')}</span>`;
+            // Округляем значение перед отображением для консистентности (до 2 знаков)
+            const roundedAmount = Math.round(amount * 100) / 100;
+            html += `<span class="tooltip-badge" style="color: #4a9eff; background: rgba(74, 158, 255, 0.1);">${getResourceIconHTML(resource)} ${getResourceName(resource)} ${formatNumber(roundedAmount)}${t('ui.perSecond')}</span>`;
         });
         html += `</div>`;
     } else {
@@ -3201,7 +3295,7 @@ function showBuildingInfo(buildingData, buildingInstance, mode = 'single', build
         html += `<p><strong>${t('ui.consumes')}</strong></p>`;
         html += `<div class="tooltip-badges">`;
         Object.entries(consumption).forEach(([resource, amount]) => {
-            html += `<span class="tooltip-badge" style="color: #ff6b6b; background: rgba(255, 107, 107, 0.1);">${getResourceIcon(resource)} ${getResourceName(resource)} ${formatNumber(amount)}${t('ui.perSecond')}</span>`;
+            html += `<span class="tooltip-badge" style="color: #ff6b6b; background: rgba(255, 107, 107, 0.1);">${getResourceIconHTML(resource)} ${getResourceName(resource)} ${formatNumber(amount)}${t('ui.perSecond')}</span>`;
         });
         html += `</div>`;
     } else {
@@ -3234,14 +3328,14 @@ function showBuildingInfo(buildingData, buildingInstance, mode = 'single', build
             const workRatio = globalWorkRatios.get(firstBuilding.instanceId) || 0;
             
             if (workRatio >= 1.0) {
-                html += `<p><strong>Статус:</strong> <span style="color: #4caf50;">Работает</span></p>`;
+                html += `<p><strong>${t('ui.status')}:</strong> <span style="color: #4caf50;">${t('ui.working')}</span></p>`;
             } else if (workRatio === 0) {
-                // Определяем, почему не работает
+                // Determine why it's not working
                 const missingResources = [];
                 Object.entries(building.consumes).forEach(([resource, rate]) => {
                     const currentAmount = resources[resource] || 0;
                     
-                    // Вычисляем производство этого ресурса
+                    // Calculate production of this resource
                     let productionRate = 0;
                     gameMap.buildings.forEach(prodBuildingInstance => {
                         const prodBuilding = buildingsCache.get(prodBuildingInstance.buildingId);
@@ -3271,15 +3365,15 @@ function showBuildingInfo(buildingData, buildingInstance, mode = 'single', build
                 });
                 
                 if (missingResources.length > 0) {
-                    html += `<p><strong>Статус:</strong> <span style="color: #f44336;">Не работает</span></p>`;
-                    html += `<p><strong>Причина:</strong> недостаточно ресурсов: ${missingResources.join(', ')}</p>`;
+                    html += `<p><strong>${t('ui.status')}:</strong> <span style="color: #f44336;">${t('ui.notWorking')}</span></p>`;
+                    html += `<p><strong>${t('ui.reason')}:</strong> ${t('ui.insufficientResources')}: ${missingResources.join(', ')}</p>`;
                 } else {
-                    html += `<p><strong>Статус:</strong> <span style="color: #f44336;">Не работает</span></p>`;
+                    html += `<p><strong>${t('ui.status')}:</strong> <span style="color: #f44336;">${t('ui.notWorking')}</span></p>`;
                 }
             }
         } else if (building && building.produces && Object.keys(building.produces).length > 0) {
-            // Здание не потребляет ресурсы, всегда работает
-            html += `<p><strong>Статус:</strong> <span style="color: #4caf50;">Работает</span></p>`;
+            // Building does not consume resources, always working
+            html += `<p><strong>${t('ui.status')}:</strong> <span style="color: #4caf50;">${t('ui.working')}</span></p>`;
         }
     }
     
@@ -3466,6 +3560,7 @@ function calculateBuildingsProduction(buildings) {
         // Добавляем производство с учетом реального коэффициента работы (в единицах в секунду)
         Object.entries(building.produces).forEach(([resource, rate]) => {
             const production = rate * totalBonus * workRatio;
+            // Не округляем здесь - суммируем точные значения, округление будет при отображении
             totalProduction[resource] = (totalProduction[resource] || 0) + production;
         });
     });
@@ -3553,11 +3648,20 @@ function updateBuildingsAvailability() {
 // Форматирование чисел (компактное для панели ресурсов, стабильное для предотвращения мерцания)
 function formatNumber(num) {
     // Округляем для стабильности форматирования
-    const rounded = Math.round(num * 100) / 100;
-    if (rounded >= 1000000) return (rounded / 1000000).toFixed(1) + 'M';
-    if (rounded >= 1000) return (rounded / 1000).toFixed(1) + 'K';
-    if (rounded >= 1) return rounded.toFixed(1);
-    return rounded.toFixed(2);
+    // Используем стандартное округление до 1 знака для значений >= 1
+    // и до 2 знаков для значений < 1, чтобы избежать проблем с плавающей точкой
+    if (num >= 1000000) {
+        return (Math.round(num / 100000) / 10).toFixed(1) + 'M';
+    }
+    if (num >= 1000) {
+        return (Math.round(num / 100) / 10).toFixed(1) + 'K';
+    }
+    if (num >= 1) {
+        // Для значений >= 1 округляем до 1 знака после запятой
+        return (Math.round(num * 10) / 10).toFixed(1);
+    }
+    // Для значений < 1 округляем до 2 знаков после запятой
+    return (Math.round(num * 100) / 100).toFixed(2);
 }
 
 // Рендеринг списка зданий (оптимизировано)
@@ -3592,7 +3696,7 @@ function createBuildingItem(building) {
     }
     
     item.innerHTML = `
-        <div class="building-item-icon">${building.icon}</div>
+        <div class="building-item-icon">${getBuildingIconHTML(building.icon, building.id)}</div>
         <div class="building-item-name">${getBuildingName(building.id)}</div>
         ${count > 0 ? `<div class="building-item-count">${count}</div>` : ''}
     `;
@@ -3639,7 +3743,7 @@ function showBuildingTooltip(building, element) {
     hideResourceTooltip();
     
     // Создаем содержимое tooltip
-    let html = `<div class="tooltip-header">${building.icon} ${getBuildingName(building.id)}</div>`;
+    let html = `<div class="tooltip-header">${getBuildingIconHTML(building.icon, building.id)} ${getBuildingName(building.id)}</div>`;
     
     // Требования (показываем актуальную стоимость с учетом прогрессивного роста)
     const baseCost = building.requires || building.cost || {};
@@ -3655,7 +3759,7 @@ function showBuildingTooltip(building, element) {
         Object.entries(actualCost).forEach(([res, amount]) => {
             const baseAmount = baseCost[res] || amount;
             const increased = amount > baseAmount;
-            html += `<span class="tooltip-badge" style="${increased ? 'color: #ff9800;' : ''}">${getResourceIcon(res)} ${getResourceName(res)} ${formatNumber(amount)}</span>`;
+            html += `<span class="tooltip-badge" style="${increased ? 'color: #ff9800;' : ''}">${getResourceIconHTML(res)} ${getResourceName(res)} ${formatNumber(amount)}</span>`;
         });
         html += '</div></div>';
     } else {
@@ -3666,7 +3770,7 @@ function showBuildingTooltip(building, element) {
     html += `<div class="tooltip-section"><strong>${t('ui.produces')}</strong>`;
     html += `<div class="tooltip-badges">`;
     Object.entries(building.produces).forEach(([res, amount]) => {
-        html += `<span class="tooltip-badge" style="color: #4a9eff;">${getResourceIcon(res)} ${getResourceName(res)} ${formatNumber(amount)}${t('ui.perSecond')}</span>`;
+        html += `<span class="tooltip-badge" style="color: #4a9eff;">${getResourceIconHTML(res)} ${getResourceName(res)} ${formatNumber(amount)}${t('ui.perSecond')}</span>`;
     });
     html += '</div></div>';
     
@@ -3675,21 +3779,21 @@ function showBuildingTooltip(building, element) {
         html += `<div class="tooltip-section"><strong>${t('ui.consumes')}</strong>`;
         html += '<div class="tooltip-badges">';
         Object.entries(building.consumes).forEach(([res, amount]) => {
-            html += `<span class="tooltip-badge" style="color: #ff6b6b;">${getResourceIcon(res)} ${getResourceName(res)} ${formatNumber(amount)}${t('ui.perSecond')}</span>`;
+            html += `<span class="tooltip-badge" style="color: #ff6b6b;">${getResourceIconHTML(res)} ${getResourceName(res)} ${formatNumber(amount)}${t('ui.perSecond')}</span>`;
         });
         html += '</div></div>';
     } else {
-        html += '<div class="tooltip-section"><strong>Потребляет:</strong> <span style="color: #4a9eff;">Ничего</span></div>';
+        html += `<div class="tooltip-section"><strong>${t('ui.consumes')}</strong> <span style="color: #4a9eff;">${t('ui.nothing')}</span></div>`;
     }
     
-    // Размер
+    // Size
     const width = building.width || 1;
     const height = building.height || 1;
-    html += `<div class="tooltip-section"><strong>Размер:</strong> ${width}×${height} клеток</div>`;
+    html += `<div class="tooltip-section"><strong>${t('ui.size')}:</strong> ${width}×${height} ${t('ui.cells')}</div>`;
     
-    // Бонусы местности
+    // Tile bonuses
     if (building.tileBonus) {
-        html += '<div class="tooltip-section"><strong>Бонусы местности:</strong><div class="tooltip-badges">';
+        html += `<div class="tooltip-section"><strong>${t('ui.tileBonuses')}:</strong><div class="tooltip-badges">`;
         Object.entries(building.tileBonus).forEach(([tile, multiplier]) => {
             html += `<span class="tooltip-badge">${getTileName(tile)}: +${Math.round((multiplier - 1) * 100)}%</span>`;
         });
@@ -3751,6 +3855,70 @@ function hideResourceTooltip() {
     const tooltip = document.getElementById('resource-tooltip');
     if (tooltip) {
         tooltip.style.display = 'none';
+    }
+}
+
+// Показать бейдж на карте
+function showMapBadge(text, x, y, type = 'building') {
+    // Показываем бейдж только если зажата клавиша Ctrl
+    if (!isCtrlPressed) {
+        return;
+    }
+    
+    const badge = document.getElementById('map-badge');
+    if (!badge) return;
+    
+    badge.textContent = text;
+    
+    // Применяем стиль в зависимости от типа
+    if (type === 'tile') {
+        badge.classList.add('tile-badge');
+    } else {
+        badge.classList.remove('tile-badge');
+    }
+    
+    badge.style.display = 'block';
+    
+    // Позиционируем бейдж рядом с курсором
+    const offsetX = 15;
+    const offsetY = 15;
+    let left = x + offsetX;
+    let top = y + offsetY;
+    
+    // Проверяем границы экрана
+    const badgeRect = badge.getBoundingClientRect();
+    const windowWidth = window.innerWidth;
+    const windowHeight = window.innerHeight;
+    
+    // Если бейдж выходит за правую границу - показываем слева от курсора
+    if (left + badgeRect.width > windowWidth) {
+        left = x - badgeRect.width - offsetX;
+    }
+    
+    // Если бейдж выходит за нижнюю границу - показываем выше курсора
+    if (top + badgeRect.height > windowHeight) {
+        top = y - badgeRect.height - offsetY;
+    }
+    
+    // Если бейдж выходит за верхнюю границу - показываем ниже
+    if (top < 0) {
+        top = offsetY;
+    }
+    
+    // Если бейдж выходит за левую границу - показываем справа
+    if (left < 0) {
+        left = offsetX;
+    }
+    
+    badge.style.left = `${left}px`;
+    badge.style.top = `${top}px`;
+}
+
+// Скрыть бейдж на карте
+function hideMapBadge() {
+    const badge = document.getElementById('map-badge');
+    if (badge) {
+        badge.style.display = 'none';
     }
 }
 
@@ -3890,7 +4058,7 @@ function showResourceTooltip(resourceKey, element) {
     const difference = production - consumption;
     
     // Создаем содержимое tooltip
-    let html = `<div class="tooltip-header">${getResourceIcon(resourceKey)} ${getResourceName(resourceKey)}</div>`;
+    let html = `<div class="tooltip-header">${getResourceIconHTML(resourceKey)} ${getResourceName(resourceKey)}</div>`;
     
     html += '<div class="tooltip-section">';
     html += `<strong>${t('ui.produced')}</strong> <span style="color: #4a9eff;">${formatNumber(production)}${t('ui.perSecond')}</span>`;
@@ -3920,7 +4088,7 @@ function createResourceBadge(resource, amount, isPositive = null) {
     const badge = document.createElement('div');
     badge.className = 'resource-badge';
     
-    const icon = getResourceIcon(resource);
+    const icon = getResourceIconHTML(resource);
     const color = isPositive === true ? '#4a9eff' : isPositive === false ? '#ff6b6b' : '#ffd700';
     
     badge.innerHTML = `
@@ -3931,7 +4099,6 @@ function createResourceBadge(resource, amount, isPositive = null) {
     return badge;
 }
 
-// Получить иконку ресурса
 // Получить иконку ресурса
 function getResourceIcon(resource) {
     const icons = {
@@ -3949,6 +4116,25 @@ function getResourceIcon(resource) {
         'military-intelligence': '🔍'
     };
     return icons[resource] || '📦';
+}
+
+// Получить HTML для иконки ресурса с поддержкой изображений (fallback на эмодзи)
+// Используется в местах, где используется innerHTML
+function getResourceIconHTML(resource) {
+    const emoji = getResourceIcon(resource);
+    const imagePath = `assets/icons/resources/${resource}.png`;
+    // Возвращаем HTML с изображением и эмодзи в качестве fallback
+    // Если изображение не загрузится, показывается эмодзи
+    return `<span class="resource-icon-wrapper"><img src="${imagePath}" alt="${emoji}" class="resource-icon-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';" style="width: 1em; height: 1em; vertical-align: middle; display: inline-block; object-fit: contain;"><span class="resource-icon-fallback" style="display: none;">${emoji}</span></span>`;
+}
+
+// Получить HTML для иконки здания с поддержкой изображений (fallback на эмодзи)
+function getBuildingIconHTML(icon, buildingId) {
+    const emoji = icon || '🏗️';
+    const imagePath = `assets/icons/buildings/${buildingId}.png`;
+    // Возвращаем HTML с изображением и эмодзи в качестве fallback
+    // Если изображение не загрузится, показывается эмодзи
+    return `<span class="building-icon-wrapper"><img src="${imagePath}" alt="${emoji}" class="building-icon-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';" style="width: 1em; height: 1em; vertical-align: middle; display: inline-block; object-fit: contain;"><span class="building-icon-fallback" style="display: none;">${emoji}</span></span>`;
 }
 
 // Получить имя ресурса
@@ -4467,23 +4653,23 @@ function showAreaSelectionInfo(buildings) {
     const iconEl = document.getElementById('selected-icon');
     const nameEl = document.getElementById('selected-name');
     if (iconEl) iconEl.textContent = '🏗️';
-    if (nameEl) nameEl.textContent = `Выбрано зданий: ${buildings.length}`;
+    if (nameEl) nameEl.textContent = `${t('ui.selectedBuildings')} ${buildings.length}`;
     
     const stats = document.getElementById('selected-stats');
     if (!stats) return;
     
-    // Подсчитываем производство и потребление для всех выбранных зданий
+    // Calculate production and consumption for all selected buildings
     const production = calculateBuildingsProduction(buildings);
     const consumption = calculateBuildingsConsumption(buildings);
     
-    let html = `<p>Выбрано зданий: ${buildings.length}</p>`;
+    let html = `<p>${t('ui.selectedBuildings')} ${buildings.length}</p>`;
     
-    // Производство
+    // Production
     if (Object.keys(production).length > 0) {
-        html += `<p><strong>Производит:</strong></p>`;
+        html += `<p><strong>${t('ui.produces')}</strong></p>`;
         html += `<div class="tooltip-badges">`;
         Object.entries(production).forEach(([resource, amount]) => {
-            html += `<span class="tooltip-badge" style="color: #4a9eff; background: rgba(74, 158, 255, 0.1);">${getResourceIcon(resource)} ${getResourceName(resource)} ${formatNumber(amount)}${t('ui.perSecond')}</span>`;
+            html += `<span class="tooltip-badge" style="color: #4a9eff; background: rgba(74, 158, 255, 0.1);">${getResourceIconHTML(resource)} ${getResourceName(resource)} ${formatNumber(amount)}${t('ui.perSecond')}</span>`;
         });
         html += `</div>`;
     } else {
@@ -4495,7 +4681,7 @@ function showAreaSelectionInfo(buildings) {
         html += `<p><strong>${t('ui.consumes')}</strong></p>`;
         html += `<div class="tooltip-badges">`;
         Object.entries(consumption).forEach(([resource, amount]) => {
-            html += `<span class="tooltip-badge" style="color: #ff6b6b; background: rgba(255, 107, 107, 0.1);">${getResourceIcon(resource)} ${getResourceName(resource)} ${formatNumber(amount)}${t('ui.perSecond')}</span>`;
+            html += `<span class="tooltip-badge" style="color: #ff6b6b; background: rgba(255, 107, 107, 0.1);">${getResourceIconHTML(resource)} ${getResourceName(resource)} ${formatNumber(amount)}${t('ui.perSecond')}</span>`;
         });
         html += `</div>`;
     } else {

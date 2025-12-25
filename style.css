@@ -67,6 +67,28 @@ body {
 .resource-icon {
     font-size: 14px;
     flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.resource-icon-wrapper {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.resource-icon-img {
+    width: 1em;
+    height: 1em;
+    vertical-align: middle;
+    display: inline-block;
+    object-fit: contain;
+}
+
+.resource-icon-fallback {
+    display: inline-block;
+    vertical-align: middle;
 }
 
 .resource-value {
@@ -229,6 +251,14 @@ body {
     z-index: 5;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
     pointer-events: auto;
+}
+
+.map-building .building-icon-img {
+    max-width: 80%;
+    max-height: 80%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
 }
 
 .map-building:hover {
@@ -518,6 +548,25 @@ body {
     border-radius: 4px;
 }
 
+.building-icon-wrapper {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.building-item-icon .building-icon-img,
+.building-icon-wrapper .building-icon-img {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+}
+
+.building-icon-fallback {
+    display: inline-block;
+}
+
 .building-item-name {
     font-size: 10px;
     font-weight: bold;
@@ -575,6 +624,14 @@ body {
     border: 2px solid #8b4513;
     border-radius: 6px;
     flex-shrink: 0;
+}
+
+.selected-icon .building-icon-img {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
 }
 
 .selected-details {
@@ -898,4 +955,30 @@ body {
 
 .resource-value.updating {
     animation: pulse 0.3s;
+}
+
+/* Бейдж для тайлов и зданий на карте */
+.map-badge {
+    position: fixed;
+    z-index: 10001;
+    pointer-events: none;
+    background: linear-gradient(135deg, rgba(45, 45, 45, 0.95) 0%, rgba(26, 26, 26, 0.95) 100%);
+    border: 2px solid #8b4513;
+    border-radius: 6px;
+    padding: 6px 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+    font-size: 13px;
+    font-weight: bold;
+    color: #ffd700;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+    white-space: nowrap;
+    transition: opacity 0.15s ease-in-out;
+}
+
+/* Бейдж для тайлов - более нейтральный стиль */
+.map-badge.tile-badge {
+    color: #b0b0b0;
+    font-weight: normal;
+    border-color: #666;
+    background: linear-gradient(135deg, rgba(40, 40, 40, 0.9) 0%, rgba(25, 25, 25, 0.9) 100%);
 }
